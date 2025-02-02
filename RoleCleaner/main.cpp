@@ -3,6 +3,24 @@
 using namespace::std;
 
 
+/*
+* iam-role 저장하기 위한 클래스 멤버 변수 별 자료형
+
+Path: string
+RoleName: string
+RoleId: string
+Arn: string
+CreateDate: time_t 
+AssumeRolePolicyDocument: map {
+    Version: string
+    Statement: vector<map>
+}
+Description: string
+MaxSessionDuration: int
+
+*/
+
+
 int main()
 {
     while (true) {
