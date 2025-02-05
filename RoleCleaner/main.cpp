@@ -15,7 +15,7 @@ Path: string
 RoleName: string
 RoleId: string
 Arn: string
-CreateDate: time_t 
+CreatedDate: time_t 
 AssumeRolePolicyDocument: map {
     Version: string
     Statement: vector<map>
