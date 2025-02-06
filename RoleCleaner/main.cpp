@@ -4,26 +4,9 @@
 #include <memory>
 #include <vector>
 #include <nlohmann/json.hpp>
-
+#include "AwsIamRole.h"
 using namespace::std;
 using json = nlohmann::json;
-
-/*
-* iam-role 저장하기 위한 클래스 멤버 변수 별 자료형
-
-Path: string
-RoleName: string
-RoleId: string
-Arn: string
-CreatedDate: time_t 
-AssumeRolePolicyDocument: map {
-    Version: string
-    Statement: vector<map>
-}
-Description: string
-MaxSessionDuration: int
-
-*/
 
 
 string ExecuteCmd(const string cmd)
@@ -46,6 +29,56 @@ string ExecuteCmd(const string cmd)
 }
 
 
+vector<AwsIamRole> ParseIamRoles(const string& jsonStr) {
+    vector<AwsIamRole> roles;
+
+    try {
+        json jsonData = json::parse(jsonStr);
+
+        if (!jsonData.contains("Roles") || !jsonData["Roles"].is_array()) {
+            throw runtime_error("Invalid JSON format: 'Roles' array not found");
+        }
+
+        for (const auto& roleJson : jsonData["Roles"]) {
+            AwsIamRole role;
+
+            role.path = roleJson.value("Path", "");
+            role.roleName = roleJson.value("RoleName", "");
+            role.roleId = roleJson.value("RoleId", "");
+            role.arn = roleJson.value("Arn", "");
+            cout << roleJson.value("CreateDate", "") << endl;
+            role.createDate = AwsIamRole::parseIso8601(roleJson.value("CreateDate", "")); // parseIso8601: "2023-11-23T03:12:07+00:00" 형식에 맞게 계산하도록 수정 필요
+            role.description = roleJson.value("Description", "");
+            role.maxSessionDuration = roleJson.value("MaxSessionDuration", 3600);
+
+            if (roleJson.contains("AssumeRolePolicyDocument") && roleJson["AssumeRolePolicyDocument"].is_object()) {
+                role.assumeRolePolicy.version = roleJson["AssumeRolePolicyDocument"].value("Version", "");
+
+                if (roleJson["AssumeRolePolicyDocument"].contains("Statement") && roleJson["AssumeRolePolicyDocument"]["Statement"].is_array()) {
+                    for (const auto& stmtJson : roleJson["AssumeRolePolicyDocument"]["Statement"]) {
+                        Statement stmt;
+                        stmt.effect = stmtJson.value("Effect", "");
+                        stmt.action = stmtJson.value("Action", "");
+
+                        if (stmtJson.contains("Principal") && stmtJson["Principal"].is_object()) {
+                            stmt.principal.service = stmtJson["Principal"].value("Service", "");
+                        }
+
+                        role.assumeRolePolicy.statement.push_back(stmt);
+                    }
+                }
+            }
+            roles.push_back(role);
+        }
+    }
+    catch (const std::exception& e) {
+        cerr << "Error parsing IAM roles JSON: " << e.what() << endl;
+    }
+
+    return roles;
+}
+
+
 int main()
 {
     while (true) {
@@ -58,27 +91,14 @@ int main()
             // 프로그램 종료
             break;
         }
-        else if (arg1 == "json") {
+        else if (arg1 == "roles") {
+            string cmd = "aws iam list-roles";
+            string res = ExecuteCmd(cmd);
+            vector<AwsIamRole> roles = ParseIamRoles(res);
 
-            // string -> json 변환 기능 테스트
-            std::string jsonString = R"({
-                "Path": "/aws-service-role/ops.apigateway.amazonaws.com/",
-                "RoleName": "AWSServiceRoleForAPIGateway",
-                "RoleId": "AROA5ZBTTCRBLMSWQZSED",
-                "Arn": "arn:aws:iam::947148493890:role/aws-service-role/ops.apigateway.amazonaws.com/AWSServiceRoleForAPIGateway",
-                "CreateDate": "2023-11-23T03:12:07+00:00",
-                "AssumeRolePolicyDocument": {
-                    "Version": "2012-10-17",
-                    "Effect": "Allow",
-                    "Service": "ops.apigateway.amazonaws.com"
-                },
-                "Description": "The Service Linked Role is used by Amazon API Gateway.",
-                "MaxSessionDuration": 3600
-            })";
-
-            json JsonData = json::parse(jsonString);
-            cout << JsonData << endl;
-
+            for (const auto& role : roles) {
+                cout << "Role Name: " << role.roleName << ", isAwsCreated: " << role.isUserCreated() << ", One year old? " << role.isOlderThanOneYear() << endl;
+            }
         }
         else {
             // 기능 수행
