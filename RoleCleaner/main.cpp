@@ -46,7 +46,7 @@ vector<AwsIamRole> ParseIamRoles(const string& jsonStr) {
             role.roleName = roleJson.value("RoleName", "");
             role.roleId = roleJson.value("RoleId", "");
             role.arn = roleJson.value("Arn", "");
-            cout << roleJson.value("CreateDate", "") << endl;
+            // cout << roleJson.value("CreateDate", "") << endl;
             role.createDate = AwsIamRole::parseIso8601(roleJson.value("CreateDate", "")); // parseIso8601: "2023-11-23T03:12:07+00:00" 형식에 맞게 계산하도록 수정 필요
             role.description = roleJson.value("Description", "");
             role.maxSessionDuration = roleJson.value("MaxSessionDuration", 3600);
@@ -96,8 +96,11 @@ int main()
             string res = ExecuteCmd(cmd);
             vector<AwsIamRole> roles = ParseIamRoles(res);
 
+            cout << "Role Name        " << "isAwsCreated        " << "One year old        " << "Number of entities        " << endl;
+
             for (const auto& role : roles) {
-                cout << "Role Name: " << role.roleName << ", isAwsCreated: " << role.isUserCreated() << ", One year old? " << role.isOlderThanOneYear() << endl;
+                cout <<  role.roleName << "    " << role.isUserCreated() << "    " << role.isOlderThanOneYear() << "    " << role.getPrincipals().size() << endl;
+                // 문자열을 표처럼 정렬해주는 함수 적용
             }
         }
         else {
