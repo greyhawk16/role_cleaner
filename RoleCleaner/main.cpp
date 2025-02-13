@@ -29,7 +29,8 @@ string ExecuteCmd(const string cmd)
 }
 
 
-vector<AwsIamRole> ParseIamRoles(const string& jsonStr) {
+vector<AwsIamRole> ParseIamRoles(const string& jsonStr) 
+{
     vector<AwsIamRole> roles;
 
     try {
@@ -79,8 +80,53 @@ vector<AwsIamRole> ParseIamRoles(const string& jsonStr) {
 }
 
 
+vector<string> GetRolePolicies(const string& roleName, const string& profile)
+{
+    vector<string> policies;
+    string profileOption;
+
+    if (profile.empty() || profile == "default") {
+        profileOption = "";
+    }
+    else {
+        profileOption = " --profile " + profile;
+    }
+
+    string getManagedCmd = "aws iam list-attached-role-policies --role-name " + roleName + profileOption;
+    string managedOutput = ExecuteCmd(getManagedCmd);
+
+    try {
+        json managedJson = json::parse(managedOutput);
+        for (const auto& policy : managedJson["AttachedPolicies"]) {
+            policies.push_back(policy["PolicyName"].get<string>());
+        }
+    }
+    catch (const json::exception& e) {
+        cerr << "JSON parsing error: " << e.what() << endl;
+    }
+
+    string getInlineCmd = "aws iam list-role-policies --role-name " + roleName + profileOption;
+    string inlineOutput = ExecuteCmd(getInlineCmd);
+
+    try {
+        json inlineJson = json::parse(inlineOutput);
+        for (const auto& policy : inlineJson["PolicyNames"]) {
+            policies.push_back(policy["PolicyName"].get<string>());
+        }
+    }
+    catch (const json::exception& e) {
+        cerr << "JSON parsing error: " << e.what() << endl;
+    }
+
+    return policies;
+}
+
+
 int main()
 {
+    vector<AwsIamRole> roles;
+    string profile;
+
     while (true) {
         cout << "Enter argument -> ";
 
@@ -94,13 +140,33 @@ int main()
         else if (arg1 == "roles") {
             string cmd = "aws iam list-roles";
             string res = ExecuteCmd(cmd);
-            vector<AwsIamRole> roles = ParseIamRoles(res);
+            roles = ParseIamRoles(res);
 
             cout << "Role Name        " << "isAwsCreated        " << "One year old        " << "Number of entities        " << endl;
 
             for (const auto& role : roles) {
                 cout <<  role.roleName << "    " << role.isUserCreated() << "    " << role.isOlderThanOneYear() << "    " << role.getPrincipals().size() << endl;
                 // 문자열을 표처럼 정렬해주는 함수 적용
+            }
+        }
+        else if (arg1 == "policies") {
+            if (roles.size() > 0) {
+                for (const auto& role : roles) {
+                    cout << "Role Name: " << role.roleName << endl;
+                    vector<string> rolePolicy = GetRolePolicies(role.roleName, profile);
+                    for (const auto& policyName : rolePolicy) {
+                        if (policyName.size() > 0) {
+                            cout << policyName << ", ";
+                        }
+                        else {
+                            cout << "No policies founc" << endl;
+                        }
+                    }
+                    cout << endl;
+                }
+            }
+            else {
+                cout << "Empty" << endl;
             }
         }
         else {
