@@ -3,14 +3,45 @@
 #include <sstream>
 #include <iomanip>
 #include <ctime>
+#include <time.h>
+#include <stdexcept>
 
 
 time_t AwsIamRole::parseIso8601(const string& iso8601) {
 	std::tm timeStamp = {};
 	std::istringstream ss(iso8601);
+
+	ss >> std::get_time(&timeStamp, "%Y-%m-%dT%H:%M:%S");
 	
 	if (ss.fail()) {
 		return -1;
+	}
+
+	size_t offsetPos = iso8601.find_last_of("+-");
+	// Time Offset implementation
+
+	if (offsetPos != string::npos && iso8601[offsetPos] != 'T') {
+		int offsetHrs = 0;
+		int offsetMins = 0;
+		char sign = iso8601[offsetPos];
+
+		try {
+			offsetHrs = std::stoi(iso8601.substr(offsetPos + 1, 2));
+			offsetMins = std::stoi(iso8601.substr(offsetPos + 4, 2));
+		}
+		catch (const std::invalid_argument& e) {
+			return -1;
+		}
+
+		time_t parsedTime = std::mktime(&timeStamp);
+		if (sign == '-') {
+			parsedTime += (offsetHrs * 3600 + offsetMins * 60);
+		}
+		else if (sign == '+') {
+			parsedTime -= (offsetHrs * 3600 +offsetMins * 60);
+		}
+
+		return parsedTime;
 	}
 
 	return std::mktime(&timeStamp);
@@ -23,7 +54,9 @@ bool AwsIamRole::isOlderThanOneYear() const {
 	std::time_t cur = system_clock::to_time_t(system_clock::now());
 	std::time_t afterCreation = createDate + (365 * 24 * 60 * 60);
 
-	return cur > afterCreation;
+	bool res = cur > afterCreation;
+
+	return res;
 }
 
 
@@ -41,5 +74,12 @@ vector<string> AwsIamRole::getPrincipals() const {
 
 
 bool AwsIamRole::isUserCreated() const {
-	return roleName.find("AWSServiceRoleFor") != 0;
+	string tgt = "AWSServiceRoleFor";
+
+	if (roleName.rfind(tgt, 0) == 0) {
+		return true;
+	}
+	else {
+		return false;
+	}
 }
